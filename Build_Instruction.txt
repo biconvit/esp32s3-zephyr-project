@@ -1,0 +1,20 @@
+- Navigate to the project root directory on your host machine (Windows PowerShell):
+  cd "C:\Users\Thuan La\Desktop\Zephyr_RTOS\esp32s3-zephyr-project"
+- Run and Mount Workspace into Container:
+  docker run -d --name my-zephyr-env `
+  -p 3333:3333 -p 2222:22 -p 8800:8800 `
+  -v "${PWD}:/workspace" `
+  -w /workspace `
+  env-zephyr-espressif /entrypoint.sh /usr/sbin/sshd -D
+
+- Access the Container (Antigravity Terminal):
+docker exec -it my-zephyr-env bash
+
+- Once inside the container, build the firmware:
+west build -p always -b esp32s3_devkitc/esp32s3/procpu -- -DDTC_OVERLAY_FILE=boards/esp32s3_devkitc.overlay
+
+- Flash Firmware to the Board (Windows PowerShell):
+python -m esptool --port "COM6" --chip auto --baud 921600 --before default_reset --after hard_reset write_flash -u --flash_mode keep --flash_freq 40m --flash_size detect 0x0 workspace/apps/smart_env_monitor/build/zephyr/zephyr.bin
+
+Monitor Serial Output (Windows PowerShell):
+python -m serial.tools.miniterm "COM6" 115200
