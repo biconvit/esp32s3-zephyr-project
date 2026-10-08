@@ -1,0 +1,188 @@
+/*
+ * Devicetree Overlay - Smart Environment Monitor & Controller
+ * Board: ESP32-S3-DevKitC
+ *
+ * Hardware Pin Mapping:
+ *   BME280       : I2C0 → SDA=GPIO15, SCL=GPIO16
+ *   ST7735S LCD  : SPI2 → MOSI=GPIO10, MISO=GPIO11, SCLK=GPIO12, CS=GPIO9, DC=GPIO18, RST=GPIO8
+ *   LED (PWM)    : LEDC CH0 → GPIO13
+ *   Fan (PWM)    : LEDC CH1 → GPIO14
+ *   Button 1     : GPIO5  (Mode select,  ACTIVE_LOW + internal PULL_UP)
+ *   Button 2     : GPIO4  (Confirm/Act,  ACTIVE_LOW + internal PULL_UP)
+ *   Potentiometer: ADC1 CH0 → GPIO1
+ */
+
+#include <zephyr/dt-bindings/pwm/pwm.h>
+#include <zephyr/dt-bindings/mipi_dbi/mipi_dbi.h>
+#include <zephyr/dt-bindings/pinctrl/esp32s3-pinctrl.h>
+
+/ {
+    aliases {
+        my-bme280 = &bme280;
+        my-led = &pwm_led_0;
+        my-fan = &pwm_fan_0;
+        my-button-mode = &button_mode;
+        my-button-confirm = &button_confirm;
+        my-adc = &adc0;
+        my-adc-channel = &adc0_ch0;
+    };
+
+    chosen {
+        zephyr,display = &st7735r_160x80;
+    };
+
+    /* ---- LEDs (PWM mode) ---- */
+    my-pwm-leds {
+        compatible = "pwm-leds";
+        pwm_led_0: pwm_led_0 {
+            pwms = <&ledc0 0 1000000 PWM_POLARITY_NORMAL>;
+        };
+    };
+
+    /* ---- Fan (PWM mode) ---- */
+    my-pwm-fans {
+        compatible = "pwm-leds";
+        pwm_fan_0: pwm_fan_0 {
+            pwms = <&ledc0 1 1000000 PWM_POLARITY_NORMAL>;
+        };
+    };
+
+    /* ---- Buttons ---- */
+    buttons {
+        compatible = "gpio-keys";
+        debounce-interval-ms = <50>;
+
+        button_mode: button_0 {
+            gpios = <&gpio0 5 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+            label = "Mode Button";
+        };
+        button_confirm: button_1 {
+            gpios = <&gpio0 4 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+            label = "Confirm Button";
+        };
+    };
+
+    /* ---- MIPI DBI (SPI Display Interface) ---- */
+    mipi_dbi {
+        compatible = "zephyr,mipi-dbi-spi";
+        spi-dev = <&spi2>;
+        dc-gpios = <&gpio0 18 GPIO_ACTIVE_HIGH>;
+        reset-gpios = <&gpio0 8 GPIO_ACTIVE_LOW>;
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        st7735r_160x80: st7735r@0 {
+            compatible = "sitronix,st7735r";
+            reg = <0>;
+            mipi-max-frequency = <20000000>;
+            mipi-mode = <MIPI_DBI_MODE_SPI_4WIRE>;
+            width = <160>;
+            height = <80>;
+            rgb-is-inverted;
+            x-offset = <0>;
+            y-offset = <24>;
+            pwctr1 = [A2 02 84];
+            pwctr2 = [C5];
+            pwctr3 = [0A 00];
+            pwctr4 = [8A 2A];
+            pwctr5 = [8A EE];
+            invctr = <7>;
+            frmctr1 = [01 2C 2D];
+            frmctr2 = [01 2C 2D];
+            frmctr3 = [01 2C 2D 01 2C 2D];
+            vmctr1 = <14>;
+            gamctrp1 = [02 1C 07 12 37 32 29 2D 29 25 2B 39 00 01 03 10];
+            gamctrn1 = [03 1D 07 06 2E 2C 29 2D 2E 2E 37 3F 00 00 02 10];
+            colmod = <5>;
+            madctl = <184>;
+            caset = [00 00 00 9f];
+            raset = [00 18 00 67];
+        };
+    };
+};
+
+/* ---- I2C0: BME280 ---- */
+&pinctrl {
+    i2c0_default: i2c0_default {
+        group1 {
+            pinmux = <I2C0_SDA_GPIO15>,
+                     <I2C0_SCL_GPIO16>;
+            bias-pull-up;
+            drive-open-drain;
+        };
+    };
+
+    /* SPI2: ST7735S LCD */
+    spi2_custom_pins: spi2_custom_pins {
+        group1 {
+            pinmux = <SPIM2_MISO_GPIO11>,
+                     <SPIM2_SCLK_GPIO12>,
+                     <SPIM2_CSEL_GPIO9>;
+        };
+        group2 {
+            pinmux = <SPIM2_MOSI_GPIO10>;
+            output-low;
+        };
+    };
+
+    /* LEDC: PWM for LED (CH0→GPIO13) and Fan (CH1→GPIO14) */
+    ledctrl_0: led-0 {
+        group1 {
+            pinmux = <LEDC_CH0_GPIO13>,
+                     <LEDC_CH1_GPIO14>;
+            output-enable;
+        };
+    };
+};
+
+&i2c0 {
+    status = "okay";
+    clock-frequency = <I2C_BITRATE_STANDARD>;
+    pinctrl-0 = <&i2c0_default>;
+    pinctrl-names = "default";
+
+    bme280: bme280@76 {
+        compatible = "bosch,bme280";
+        reg = <0x76>;
+        status = "okay";
+    };
+};
+
+&spi2 {
+    pinctrl-0 = <&spi2_custom_pins>;
+    status = "okay";
+};
+
+/* ---- ADC1: Potentiometer ---- */
+&adc0 {
+    status = "okay";
+    #address-cells = <1>;
+    #size-cells = <0>;
+
+    adc0_ch0: channel@0 {
+        reg = <0>;
+        zephyr,gain = "ADC_GAIN_1_4";
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,vref-mv = <3900>;
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,resolution = <12>;
+    };
+};
+
+/* ---- LEDC: PWM Controller ---- */
+&ledc0 {
+    pinctrl-0 = <&ledctrl_0>;
+    pinctrl-names = "default";
+    status = "okay";
+    #address-cells = <1>;
+    #size-cells = <0>;
+
+    channel0@0 {
+        reg = <0x0>;
+        timer = <0>;
+    };
+    channel1@1 {
+        reg = <0x1>;
+        timer = <1>;
+    };
+};

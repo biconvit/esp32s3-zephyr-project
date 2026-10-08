@@ -1,0 +1,32 @@
+# ==========================================
+# 1. Zephyr RTOS & Build Outputs
+# ==========================================
+build
+twister-out
+zephyr
+.west
+modules
+
+# ==========================================
+# 2. Python Environment (esptool, west, scripts)
+# ==========================================
+venv
+.venv
+__pycache__
+.py[cod]
+
+# ==========================================
+# 3. IDEs & Editors (Antigravity, VS Code)
+# ==========================================
+.antigravity
+.code-workspace
+.vscode
+!.vscodesettings.json
+!.vscodetasks.json
+!.vscodelaunch.json
+
+# ==========================================
+# 4. OS Temporary Files
+# ==========================================
+Thumbs.db
+.DS_Store
